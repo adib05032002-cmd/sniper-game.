@@ -1,1 +1,206 @@
 
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>القناص المحترف 🎯</title>
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;background:#0b1220;color:white;
+  font-family:Arial,sans-serif;text-align:center;
+}
+header{padding:15px 8px}
+h1{margin:5px;color:#ffd76a}
+.stats{
+  display:flex;justify-content:center;gap:10px;
+  flex-wrap:wrap;margin:12px;
+}
+.stat{
+  background:#1c2940;border:1px solid #405575;
+  padding:10px 15px;border-radius:12px;
+}
+#game{
+  display:block;width:min(94vw,800px);
+  height:auto;margin:auto;border:2px solid #607da8;
+  border-radius:12px;cursor:crosshair;touch-action:manipulation;
+}
+button{
+  background:#ffd76a;color:#152039;border:0;
+  padding:13px 24px;margin:12px;border-radius:10px;
+  font-size:18px;font-weight:bold;cursor:pointer;
+}
+#message{min-height:28px;color:#c9dcff;padding:5px}
+small{color:#b8c6db}
+</style>
+</head>
+<body>
+<header>
+<h1>🎯 القنّاص المحترف</h1>
+<div class="stats">
+  <div class="stat">النقاط: <b id="score">0</b></div>
+  <div class="stat">الوقت: <b id="time">45</b> ث</div>
+  <div class="stat">المرحلة: <b id="level">1</b></div>
+  <div class="stat">الإصابات: <b id="hits">0</b></div>
+</div>
+</header>
+
+<canvas id="game" width="800" height="480"></canvas>
+<div id="message">اضغط على «ابدأ المهمة» للانطلاق!</div>
+<button id="start">ابدأ المهمة 🚀</button>
+<p><small>صوّب بالماوس أو المس الهدف بإصبعك. اجمع أكبر عدد من النقاط!</small></p>
+
+<script>
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+const $=id=>document.getElementById(id);
+
+let score=0,hits=0,time=45,level=1;
+let playing=false,last=0,elapsed=0,targets=[];
+let raf=0;
+
+function makeTarget(){
+  const r=18+Math.random()*13;
+  targets.push({
+    x:70+Math.random()*660,
+    y:85+Math.random()*300,
+    r,
+    vx:(Math.random()<.5?-1:1)*(65+level*15+Math.random()*45),
+    vy:(Math.random()<.5?-1:1)*(25+Math.random()*45),
+    hue:Math.random()<.5?5:185
+  });
+}
+
+function background(){
+  const sky=ctx.createLinearGradient(0,0,0,480);
+  sky.addColorStop(0,"#111e3b");
+  sky.addColorStop(1,"#40546c");
+  ctx.fillStyle=sky;ctx.fillRect(0,0,800,480);
+
+  // مدينة خيالية في الخلفية
+  for(let i=0;i<12;i++){
+    const x=i*75-5;
+    const h=80+(i*37%100);
+    ctx.fillStyle=i%2?"#1b2c43":"#243750";
+    ctx.fillRect(x,390-h,58,h);
+    ctx.fillStyle="#ffd76a";
+    for(let j=0;j<3;j++){
+      for(let k=0;k<4;k++){
+        ctx.fillRect(x+9+k*12,405-h+j*22,4,6);
+      }
+    }
+  }
+  ctx.fillStyle="#17283b";
+  ctx.fillRect(0,420,800,60);
+}
+
+function drawTarget(t){
+  ctx.save();
+  ctx.shadowColor=t.hue===5?"#ff716d":"#67fff1";
+  ctx.shadowBlur=12;
+  ctx.fillStyle=t.hue===5?"#ff716d":"#67fff1";
+  ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.fillStyle="#f5f7ff";
+  ctx.beginPath();ctx.arc(t.x,t.y,t.r*.72,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=t.hue===5?"#f05252":"#168e9b";
+  ctx.beginPath();ctx.arc(t.x,t.y,t.r*.44,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle="#ffe477";
+  ctx.beginPath();ctx.arc(t.x,t.y,t.r*.17,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+}
+
+function draw(){
+  background();
+  targets.forEach(drawTarget);
+  if(!playing){
+    ctx.fillStyle="rgba(4,10,25,.35)";
+    ctx.fillRect(0,0,800,480);
+    ctx.fillStyle="white";ctx.textAlign="center";
+    ctx.font="bold 32px Arial";
+    ctx.fillText(time===0?"انتهت المهمة!":"استعد للمهمة",400,235);
+  }
+}
+
+function update(now){
+  if(!playing)return;
+  const dt=Math.min((now-last)/1000||0,.04);
+  last=now;elapsed+=dt;
+  if(elapsed>=1){
+    const seconds=Math.floor(elapsed);
+    time=Math.max(0,time-seconds);
+    elapsed-=seconds;
+    $("time").textContent=time;
+  }
+  if(time<=0){
+    playing=false;
+    $("message").textContent=`انتهت المهمة! نتيجتك ${score} نقطة.`;
+    $("start").textContent="العب من جديد 🔄";
+    draw();return;
+  }
+
+  targets.forEach(t=>{
+    t.x+=t.vx*dt;t.y+=t.vy*dt;
+    if(t.x<t.r||t.x>800-t.r)t.vx*=-1;
+    if(t.y<t.r+45||t.y>410-t.r)t.vy*=-1;
+  });
+
+  if(targets.length<Math.min(3+level,9) && Math.random()<dt*1.5)
+    makeTarget();
+
+  draw();
+  raf=requestAnimationFrame(update);
+}
+
+function startGame(){
+  cancelAnimationFrame(raf);
+  score=0;hits=0;time=45;level=1;
+  elapsed=0;targets=[];playing=true;last=performance.now();
+  for(let i=0;i<4;i++)makeTarget();
+  $("score").textContent=score;
+  $("hits").textContent=hits;
+  $("time").textContent=time;
+  $("level").textContent=level;
+  $("message").textContent="انطلق! صوب على الأهداف الدائرية 🎯";
+  $("start").textContent="إعادة المهمة 🔄";
+  draw();raf=requestAnimationFrame(update);
+}
+
+function shoot(e){
+  if(!playing)return;
+  const rect=canvas.getBoundingClientRect();
+  const x=(e.clientX-rect.left)*canvas.width/rect.width;
+  const y=(e.clientY-rect.top)*canvas.height/rect.height;
+
+  let index=-1;
+  for(let i=targets.length-1;i>=0;i--){
+    const t=targets[i];
+    if(Math.hypot(x-t.x,y-t.y)<=t.r){
+      index=i;break;
+    }
+  }
+
+  if(index>=0){
+    targets.splice(index,1);
+    hits++;score+=10;
+    level=1+Math.floor(hits/8);
+    $("message").textContent="إصابة ممتازة! +10 ⭐";
+  }else{
+    score=Math.max(0,score-2);
+    $("message").textContent="ما صبتش الهدف! -2";
+  }
+
+  $("score").textContent=score;
+  $("hits").textContent=hits;
+  $("level").textContent=level;
+  draw();
+}
+
+canvas.addEventListener("pointerdown",shoot);
+$("start").addEventListener("click",startGame);
+draw();
+</script>
+</body>
+</html>
+
